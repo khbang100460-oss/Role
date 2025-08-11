@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>청소 및 1인 1역 랜덤 생성기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        .draggable {
+            cursor: move;
+            user-select: none;
+        }
+        .drop-zone {
+            min-height: 50px;
+            border: 2px dashed #ccc;
+            transition: background-color 0.3s;
+        }
+        .drag-over {
+            background-color: #e0e7ff;
+        }
+        .student-tag {
+            transition: all 0.2s ease-in-out;
+        }
+        .student-tag:hover {
+            transform: scale(1.05);
+        }
+        /* 스크롤바 스타일 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-indigo-600">청소 및 1인 1역 랜덤 생성기</h1>
+            <p class="text-gray-500 mt-2">역할과 학생을 설정하고 버튼 하나로 역할을 배정하세요!</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- 설정 패널 -->
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-bold mb-6 border-b pb-3">⚙️ 설정</h2>
+
+                <!-- 학생 관리 -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold mb-3">1. 학생 명단 관리</h3>
+                    <div class="flex flex-col gap-2">
+                        <textarea id="studentNames" class="flex-grow p-2 border rounded-lg focus:ring-2 focus:ring-indigo-400" rows="3" placeholder="학생 이름을 쉼표(,) 또는 띄어쓰기로 구분하여 한 번에 입력하세요."></textarea>
+                        <button id="addStudentsBtn" class="bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-600 transition w-full">명단에 추가</button>
+                    </div>
+                    <div id="studentList" class="mt-3 flex flex-wrap gap-2 p-3 bg-slate-100 rounded-lg min-h-[60px]">
+                        <!-- 학생 태그가 여기에 추가됩니다 -->
+                    </div>
+                </div>
+
+                <!-- 역할 관리 -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-3">
+                         <h3 class="text-lg font-semibold">2. 역할 관리</h3>
+                         <div id="totalCountDisplay" class="font-semibold text-gray-600 text-sm text-right">
+                            <!-- 총 인원 집계가 여기에 표시됩니다. -->
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="roleName" class="w-1/2 p-2 border rounded-lg focus:ring-2 focus:ring-indigo-400" placeholder="역할 이름">
+                        <input type="number" id="roleCount" class="w-1/4 p-2 border rounded-lg focus:ring-2 focus:ring-indigo-400" placeholder="인원" min="1" value="1">
+                        <button id="addRoleBtn" class="flex-grow bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-600 transition">역할 추가</button>
+                    </div>
+                    <div id="manualRoleList" class="space-y-2 max-h-40 overflow-y-auto pr-2">
+                        <!-- 수동 추가 역할 목록 -->
+                    </div>
+                    
+                     <div class="border-t pt-4 mt-4">
+                        <h4 class="text-md font-semibold mb-2 text-gray-700">역할 자동 추천</h4>
+                         <p class="text-sm text-gray-500 mb-3">💡 **Tip:** 추천된 역할을 클릭하면 위 입력 칸에 내용이 채워집니다. 수정 후 '역할 추가' 버튼을 눌러 목록에 등록하세요.</p>
+                        <div class="flex gap-2 mb-3">
+                            <input type="number" id="recommendStudentCount" class="w-1/2 p-2 border rounded-lg focus:ring-2 focus:ring-green-400" placeholder="추천받을 총 학생 수 (예: 32)">
+                             <button id="recommendCleaning" class="flex-grow bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition whitespace-nowrap">🧹 청소</button>
+                            <button id="recommendIndividual" class="flex-grow bg-sky-500 text-white px-4 py-2 rounded-lg hover:bg-sky-600 transition whitespace-nowrap">🙋 1인 1역</button>
+                        </div>
+                    </div>
+                    <div id="recommendedRoleList" class="space-y-2 max-h-40 overflow-y-auto pr-2">
+                        <!-- 추천 역할 목록 -->
+                    </div>
+                </div>
+
+                <!-- 같이 배정되면 안되는 학생 -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold mb-3">3. 제외 조건 설정</h3>
+                    <div class="flex gap-2 items-center">
+                        <select id="excludeStudent1" class="flex-grow p-2 border rounded-lg bg-white"></select>
+                        <span class="font-bold">와(과)</span>
+                        <select id="excludeStudent2" class="flex-grow p-2 border rounded-lg bg-white"></select>
+                        <button id="addExclusionBtn" class="bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition">조건 추가</button>
+                    </div>
+                    <div id="exclusionList" class="mt-3 flex flex-wrap gap-2 p-3 bg-slate-100 rounded-lg min-h-[40px]">
+                        <!-- 제외 조건 태그가 여기에 추가됩니다 -->
+                    </div>
+                </div>
+                
+                <!-- 실행 버튼 -->
+                <div>
+                    <button id="generateBtn" class="w-full bg-red-500 text-white text-lg font-bold py-3 rounded-lg hover:bg-red-600 transition transform hover:scale-105">✨ 역할 랜덤 배정 실행! ✨</button>
+                </div>
+            </div>
+
+            <!-- 결과 패널 -->
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center mb-4 border-b pb-3">
+                    <h2 class="text-2xl font-bold">📊 배정 결과</h2>
+                    <button id="exportCsvBtn" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition flex items-center gap-2">
+                       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 2.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                        </svg>
+                        엑셀로 내보내기 (CSV)
+                    </button>
+                </div>
+                <div id="resultArea" class="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
+                    <p class="text-gray-500 text-center py-10">설정을 완료하고 '역할 랜덤 배정 실행' 버튼을 눌러주세요.</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 모달 창 -->
+        <div id="alertModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 hidden">
+            <div class="bg-white p-8 rounded-lg shadow-2xl text-center max-w-sm w-full">
+                <p id="modalMessage" class="text-lg mb-6"></p>
+                <button id="closeModalBtn" class="bg-indigo-500 text-white px-6 py-2 rounded-lg hover:bg-indigo-600 transition">확인</button>
+            </div>
+        </div>
+        
+        <!-- 확인 모달 창 -->
+        <div id="confirmModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 hidden">
+            <div class="bg-white p-8 rounded-lg shadow-2xl text-center max-w-sm w-full">
+                <p id="confirmMessage" class="text-lg mb-6"></p>
+                <div class="flex justify-center gap-4">
+                    <button id="confirmYesBtn" class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition">예</button>
+                    <button id="confirmNoBtn" class="bg-gray-300 px-6 py-2 rounded-lg hover:bg-gray-400 transition">아니요</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CSV 내보내기 모달 -->
+        <div id="csvModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 hidden">
+            <div class="bg-white p-8 rounded-lg shadow-2xl text-left max-w-md w-full">
+                <h3 class="text-xl font-bold mb-4">엑셀 데이터 복사하기</h3>
+                <p class="text-gray-600 mb-4">아래 내용을 복사하여 엑셀 시트에 붙여넣으세요.</p>
+                <textarea id="csvOutput" class="w-full h-40 p-2 border rounded-lg bg-gray-50 font-mono text-sm" readonly></textarea>
+                <div class="flex justify-end gap-4 mt-4">
+                    <button id="copyCsvBtn" class="bg-indigo-500 text-white px-6 py-2 rounded-lg hover:bg-indigo-600 transition">복사하기</button>
+                    <button id="closeCsvModalBtn" class="bg-gray-300 px-6 py-2 rounded-lg hover:bg-gray-400 transition">닫기</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- 상태 관리 및 데이터 ---
+        let students = []; // 학생 목록. 동명이인은 '이름_2', '이름_3' 등으로 저장
+        let roles = []; // 역할 목록. {name, count, recommended: boolean}
+        let exclusions = [];
+        let assignments = {};
+
+        const CLEANING_ROLE_POOL = ['교실 바닥 쓸기', '복도 쓸기', '분리수거', '창틀 닦기', '칠판 지우기', '쓰레기통 비우기', '게시판 관리', '사물함 위 먼지 닦기', '교구장 정리', '복도 걸레질', '특별구역 청소', '신발장 정리', '계단 청소', '화분 관리', '컴퓨터 책상 정리', '문 손잡이 소독', '칠판틀 닦기', '창문 닦기', '거미줄 제거', '책상 줄 맞추기', '의자 넣기', '재활용품 라벨 제거', '바닥 스티커 제거', '공기청정기 필터 관리', '소독 티슈로 책상 닦기'];
+        const INDIVIDUAL_ROLE_POOL = ['우유 당번', '숙제 걷기', '1분 스피치 도우미', '식물 관리', '멀티미디어 담당', '알림장 도우미', '줄반장', '도서부장', '우편물 담당', '행사 도우미', '에너지 지킴이', '또래 상담사', '아침활동 도우미', '체육부장', '기자재 담당', '생일 축하 도우미', '칭찬 배달부', '분실물 담당', '시간 알리미', '학습 자료 배부 도우미', '걷기 도우미', '급식 도우미', '칭찬 샤워 진행자', '학급 회의 서기', '미디어 비평가', '오늘의 뉴스 전달자', '건강 지킴이', '마니또 지킴이', '타임캡슐 관리자', '우리 반 DJ', '이달의 독서왕', '창의력 대장', '유머 담당', '고민 해결사', '절약의 신'];
+
+        // --- DOM 요소 ---
+        const studentNamesInput = document.getElementById('studentNames');
+        const addStudentsBtn = document.getElementById('addStudentsBtn');
+        const studentListDiv = document.getElementById('studentList');
+        
+        const roleNameInput = document.getElementById('roleName');
+        const roleCountInput = document.getElementById('roleCount');
+        const addRoleBtn = document.getElementById('addRoleBtn');
+        const manualRoleListDiv = document.getElementById('manualRoleList');
+        const recommendedRoleListDiv = document.getElementById('recommendedRoleList');
+
+        const recommendStudentCountInput = document.getElementById('recommendStudentCount');
+        const recommendCleaningBtn = document.getElementById('recommendCleaning');
+        const recommendIndividualBtn = document.getElementById('recommendIndividual');
+
+        const excludeStudent1Select = document.getElementById('excludeStudent1');
+        const excludeStudent2Select = document.getElementById('excludeStudent2');
+        const addExclusionBtn = document.getElementById('addExclusionBtn');
+        const exclusionListDiv = document.getElementById('exclusionList');
+        
+        const generateBtn = document.getElementById('generateBtn');
+        const resultArea = document.getElementById('resultArea');
+
+        const totalCountDisplay = document.getElementById('totalCountDisplay');
+        
+        const exportCsvBtn = document.getElementById('exportCsvBtn');
+        const csvModal = document.getElementById('csvModal');
+        const csvOutput = document.getElementById('csvOutput');
+        const copyCsvBtn = document.getElementById('copyCsvBtn');
+        const closeCsvModalBtn = document.getElementById('closeCsvModalBtn');
+
+        const alertModal = document.getElementById('alertModal');
+        const modalMessage = document.getElementById('modalMessage');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+
+        const confirmModal = document.getElementById('confirmModal');
+        const confirmMessage = document.getElementById('confirmMessage');
+        const confirmYesBtn = document.getElementById('confirmYesBtn');
+        const confirmNoBtn = document.getElementById('confirmNoBtn');
+
+        // --- 함수 ---
+
+        function showAlert(message) {
+            modalMessage.textContent = message;
+            alertModal.classList.remove('hidden');
+        }
+
+        function showConfirm(message) {
+            return new Promise((resolve) => {
+                confirmMessage.textContent = message;
+                confirmModal.classList.remove('hidden');
+
+                confirmYesBtn.onclick = () => {
+                    confirmModal.classList.add('hidden');
+                    resolve(true);
+                };
+                confirmNoBtn.onclick = () => {
+                    confirmModal.classList.add('hidden');
+                    resolve(false);
+                };
+            });
+        }
+        
+        function getBaseName(student) {
+            return student.split('_')[0];
+        }
+
+        function updateCounts() {
+            const totalRoleCount = roles.reduce((sum, role) => sum + role.count, 0);
+            totalCountDisplay.innerHTML = `총 <span class="text-indigo-600 font-bold">${totalRoleCount}</span> / <span class="text-blue-600 font-bold">${students.length}</span> 명`;
+        }
+
+        function renderStudents() {
+            const nameCounts = students.reduce((acc, student) => {
+                const baseName = getBaseName(student);
+                acc[baseName] = (acc[baseName] || 0) + 1;
+                return acc;
+            }, {});
+
+            studentListDiv.innerHTML = '';
+            students.forEach((student) => {
+                const baseName = getBaseName(student);
+                const isDuplicate = nameCounts[baseName] > 1;
+
+                const tag = document.createElement('span');
+                tag.className = 'bg-blue-200 text-blue-800 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2';
+                
+                let displayName = baseName;
+                if (isDuplicate) {
+                    displayName += ` <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" /></svg>`;
+                }
+
+                tag.innerHTML = `${displayName} <button data-id="${student}" class="remove-student text-blue-600 hover:text-blue-900 font-bold">x</button>`;
+                studentListDiv.appendChild(tag);
+            });
+            updateExclusionDropdowns();
+            updateCounts();
+        }
+
+        async function addStudents() {
+            const namesString = studentNamesInput.value.trim();
+            if (!namesString) return;
+
+            const names = namesString.replace(/,/g, ' ').split(/\s+/).filter(name => name.length > 0);
+            
+            for (const name of names) {
+                const baseName = getBaseName(name);
+                const existingStudents = students.filter(s => getBaseName(s) === baseName);
+
+                if (existingStudents.length > 0) {
+                    const confirmed = await showConfirm(`'${baseName}' 학생은 이미 명단에 있습니다. 동명이인으로 추가하시겠습니까?`);
+                    if (confirmed) {
+                        const newSuffix = existingStudents.length + 1;
+                        students.push(`${baseName}_${newSuffix}`);
+                    }
+                } else {
+                    students.push(baseName);
+                }
+            }
+            
+            renderStudents();
+            studentNamesInput.value = '';
+            studentNamesInput.focus();
+        }
+
+        function removeStudent(studentId) {
+            students = students.filter(s => s !== studentId);
+            exclusions = exclusions.filter(ex => ex.student1 !== studentId && ex.student2 !== studentId);
+            renderStudents();
+            renderExclusions();
+        }
+
+        function renderRoles() {
+            manualRoleListDiv.innerHTML = '';
+            recommendedRoleListDiv.innerHTML = '';
+
+            roles.forEach((role, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-2 bg-slate-100 rounded-lg';
+                div.innerHTML = `
+                    <span class="font-medium role-name-span cursor-pointer hover:text-indigo-600 transition-colors" data-index="${index}">
+                        ${role.name}
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-600">${role.count}명</span>
+                        <button data-index="${index}" class="remove-role bg-red-200 text-red-700 px-2 py-1 rounded hover:bg-red-300 text-xs">삭제</button>
+                    </div>
+                `;
+                if (role.recommended) {
+                    recommendedRoleListDiv.appendChild(div);
+                } else {
+                    manualRoleListDiv.appendChild(div);
+                }
+            });
+            updateCounts();
+        }
+
+        function addRole() {
+            const name = roleNameInput.value.trim();
+            const count = parseInt(roleCountInput.value, 10);
+            if (name && count > 0) {
+                if (roles.some(role => role.name === name)) {
+                    showAlert('이미 존재하는 역할 이름입니다.');
+                    return;
+                }
+                roles.push({ name, count, recommended: false });
+                renderRoles();
+                roleNameInput.value = '';
+                roleCountInput.value = '1';
+            }
+            roleNameInput.focus();
+        }
+        
+        function removeRole(index) {
+            roles.splice(index, 1);
+            renderRoles();
+        }
+
+        function recommendRolesFromPool(type) {
+            let totalStudents = parseInt(recommendStudentCountInput.value, 10);
+            if (isNaN(totalStudents) || totalStudents <= 0) {
+                showAlert('추천받을 총 학생 수를 먼저 입력해주세요.');
+                return;
+            }
+
+            roles = roles.filter(role => !role.recommended);
+            const existingRoleNames = new Set(roles.map(r => r.name));
+            const rolePool = (type === 'cleaning' ? CLEANING_ROLE_POOL : INDIVIDUAL_ROLE_POOL)
+                .filter(name => !existingRoleNames.has(name));
+
+            for (let i = rolePool.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [rolePool[i], rolePool[j]] = [rolePool[j], rolePool[i]];
+            }
+
+            const recommendedRoles = [];
+            let assignedCount = roles.reduce((sum, role) => sum + role.count, 0);
+            let poolIndex = 0;
+
+            while (assignedCount < totalStudents && poolIndex < rolePool.length) {
+                const roleName = rolePool[poolIndex];
+                let count = (totalStudents - assignedCount >= 2 && Math.random() > 0.3) ? 2 : 1;
+                
+                recommendedRoles.push({ name: roleName, count, recommended: true });
+                assignedCount += count;
+                poolIndex++;
+            }
+
+            const excess = assignedCount - totalStudents;
+            if (excess > 0 && recommendedRoles.length > 0) {
+                const lastRole = recommendedRoles[recommendedRoles.length - 1];
+                if (lastRole.count > excess) {
+                    lastRole.count -= excess;
+                } else {
+                    recommendedRoles.pop();
+                }
+            }
+
+            roles.push(...recommendedRoles);
+            renderRoles();
+        }
+
+        function updateExclusionDropdowns() {
+            const options = students.map(s => `<option value="${s}">${getBaseName(s)}</option>`).join('');
+            excludeStudent1Select.innerHTML = options;
+            excludeStudent2Select.innerHTML = options;
+        }
+
+        function renderExclusions() {
+            exclusionListDiv.innerHTML = '';
+            exclusions.forEach((ex, index) => {
+                const tag = document.createElement('span');
+                tag.className = 'bg-yellow-200 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-2';
+                tag.innerHTML = `(${getBaseName(ex.student1)}, ${getBaseName(ex.student2)}) <button data-index="${index}" class="remove-exclusion text-yellow-600 hover:text-yellow-900 font-bold">x</button>`;
+                exclusionListDiv.appendChild(tag);
+            });
+        }
+
+        function addExclusion() {
+            const s1 = excludeStudent1Select.value;
+            const s2 = excludeStudent2Select.value;
+            if (s1 && s2 && s1 !== s2) {
+                const newExclusion = { student1: s1, student2: s2 };
+                const reversedExclusion = { student1: s2, student2: s1 };
+                const exists = exclusions.some(ex => 
+                    (ex.student1 === newExclusion.student1 && ex.student2 === newExclusion.student2) ||
+                    (ex.student1 === reversedExclusion.student1 && ex.student2 === reversedExclusion.student2)
+                );
+                if (!exists) {
+                    exclusions.push(newExclusion);
+                    renderExclusions();
+                } else { showAlert('이미 등록된 제외 조건입니다.'); }
+            } else if (s1 === s2) { showAlert('서로 다른 학생을 선택해야 합니다.'); }
+        }
+        
+        function removeExclusion(index) {
+            exclusions.splice(index, 1);
+            renderExclusions();
+        }
+
+        function generateAssignments() {
+            const totalRolesCount = roles.reduce((sum, role) => sum + role.count, 0);
+            if (students.length === 0) { showAlert('학생 명단을 먼저 추가해주세요.'); return; }
+            if (roles.length === 0) { showAlert('역할을 먼저 추가해주세요.'); return; }
+            if (students.length < totalRolesCount) { showAlert(`학생 수(${students.length}명)가 역할의 총 인원(${totalRolesCount}명)보다 적습니다.`); return; }
+
+            let attempt = 0;
+            while (attempt < 100) {
+                let shuffledStudents = [...students].sort(() => 0.5 - Math.random());
+                let tempAssignments = {};
+                roles.forEach(role => tempAssignments[role.name] = []);
+                
+                let currentStudentIndex = 0;
+                let success = true;
+                for (const role of roles) {
+                    for (let i = 0; i < role.count; i++) {
+                        if (currentStudentIndex < shuffledStudents.length) {
+                            tempAssignments[role.name].push(shuffledStudents[currentStudentIndex++]);
+                        } else { success = false; break; }
+                    }
+                    if (!success) break;
+                }
+                if (!success) continue;
+
+                let isValid = true;
+                for (const roleName in tempAssignments) {
+                    const assignedStudents = tempAssignments[roleName];
+                    for (const exclusion of exclusions) {
+                        if (assignedStudents.includes(exclusion.student1) && assignedStudents.includes(exclusion.student2)) {
+                            isValid = false; break;
+                        }
+                    }
+                    if (!isValid) break;
+                }
+
+                if (isValid) {
+                    assignments = tempAssignments;
+                    const assignedStudentsSet = new Set(Object.values(assignments).flat());
+                    const unassignedStudents = students.filter(s => !assignedStudentsSet.has(s));
+                    if (unassignedStudents.length > 0) {
+                        assignments['무소속'] = unassignedStudents;
+                    }
+                    renderResults();
+                    return;
+                }
+                attempt++;
+            }
+            showAlert('제외 조건을 만족하는 조합을 찾기 어렵습니다. 조건을 변경하거나 다시 시도해주세요.');
+        }
+
+        function renderResults() {
+            resultArea.innerHTML = '';
+            for (const roleName in assignments) {
+                const roleDiv = document.createElement('div');
+                roleDiv.className = 'p-4 rounded-lg';
+                roleDiv.style.backgroundColor = roleName === '무소속' ? '#f1f5f9' : '#eef2ff';
+                const title = document.createElement('h4');
+                title.className = 'text-lg font-bold mb-3';
+                title.textContent = roleName;
+                roleDiv.appendChild(title);
+                const studentContainer = document.createElement('div');
+                studentContainer.className = 'flex flex-wrap gap-2 drop-zone';
+                studentContainer.dataset.role = roleName;
+                assignments[roleName].forEach(studentId => {
+                    const studentTag = document.createElement('span');
+                    studentTag.className = 'student-tag draggable bg-white px-4 py-2 rounded-lg shadow-sm font-semibold';
+                    studentTag.textContent = getBaseName(studentId);
+                    studentTag.draggable = true;
+                    studentTag.dataset.student = studentId;
+                    studentContainer.appendChild(studentTag);
+                });
+                roleDiv.appendChild(studentContainer);
+                resultArea.appendChild(roleDiv);
+            }
+        }
+
+        function generateCsv() {
+            if (Object.keys(assignments).length === 0) {
+                showAlert('먼저 역할을 배정해주세요.');
+                return;
+            }
+
+            let csvContent = "역할\t이름\n"; // 탭으로 구분
+
+            const tableData = Object.entries(assignments).map(([role, students]) => {
+                const sortedStudents = students.map(getBaseName).sort((a, b) => a.localeCompare(b, 'ko-KR')).join(', ');
+                return `${role}\t${sortedStudents}`;
+            }).join("\n");
+            
+            csvContent += tableData;
+
+            csvOutput.value = csvContent;
+            csvModal.classList.remove('hidden');
+        }
+        
+        // --- 이벤트 리스너 ---
+        addStudentsBtn.addEventListener('click', addStudents);
+        studentNamesInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addStudents(); } });
+        studentListDiv.addEventListener('click', (e) => { 
+            const removeBtn = e.target.closest('.remove-student');
+            if (removeBtn) removeStudent(removeBtn.dataset.id); 
+        });
+        addRoleBtn.addEventListener('click', addRole);
+        roleNameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') addRole(); });
+        roleCountInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') addRole(); });
+        
+        function handleRoleListClick(e) {
+            const target = e.target;
+            const removeBtn = target.closest('.remove-role');
+            if (removeBtn) {
+                const index = parseInt(removeBtn.dataset.index, 10);
+                roles.splice(index, 1);
+                renderRoles();
+                return;
+            }
+            const roleNameSpan = target.closest('.role-name-span');
+            if (roleNameSpan) {
+                const index = parseInt(roleNameSpan.dataset.index, 10);
+                const roleToEdit = roles[index];
+
+                roleNameInput.value = roleToEdit.name;
+                roleCountInput.value = roleToEdit.count;
+                roleNameInput.focus();
+
+                roles.splice(index, 1);
+                renderRoles();
+            }
+        }
+        manualRoleListDiv.addEventListener('click', handleRoleListClick);
+        recommendedRoleListDiv.addEventListener('click', handleRoleListClick);
+        
+        recommendCleaningBtn.addEventListener('click', () => recommendRolesFromPool('cleaning'));
+        recommendIndividualBtn.addEventListener('click', () => recommendRolesFromPool('individual'));
+        addExclusionBtn.addEventListener('click', addExclusion);
+        exclusionListDiv.addEventListener('click', (e) => { if (e.target.classList.contains('remove-exclusion')) removeExclusion(e.target.dataset.index); });
+        generateBtn.addEventListener('click', generateAssignments);
+        closeModalBtn.addEventListener('click', () => alertModal.classList.add('hidden'));
+        
+        exportCsvBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            generateCsv();
+        });
+
+        copyCsvBtn.addEventListener('click', () => {
+            csvOutput.select();
+            document.execCommand('copy');
+            showAlert('엑셀 데이터가 클립보드에 복사되었습니다. 엑셀에 붙여넣기 하세요.');
+            csvModal.classList.add('hidden');
+        });
+
+        closeCsvModalBtn.addEventListener('click', () => {
+            csvModal.classList.add('hidden');
+        });
+        
+        let draggedItem = null;
+        resultArea.addEventListener('dragstart', (e) => { if (e.target.classList.contains('draggable')) { draggedItem = e.target; setTimeout(() => { e.target.style.opacity = '0.5'; }, 0); } });
+        resultArea.addEventListener('dragend', (e) => { if (draggedItem) { setTimeout(() => { draggedItem.style.opacity = '1'; draggedItem = null; }, 0); } });
+        resultArea.addEventListener('dragover', (e) => { e.preventDefault(); const dropZone = e.target.closest('.drop-zone'); if(dropZone) { document.querySelectorAll('.drop-zone').forEach(dz => dz.classList.remove('drag-over')); dropZone.classList.add('drag-over'); } });
+        resultArea.addEventListener('dragleave', (e) => { const dropZone = e.target.closest('.drop-zone'); if(dropZone) dropZone.classList.remove('drag-over'); });
+        resultArea.addEventListener('drop', (e) => { e.preventDefault(); document.querySelectorAll('.drop-zone').forEach(dz => dz.classList.remove('drag-over')); if (!draggedItem) return; const dropZone = e.target.closest('.drop-zone'); if (dropZone) { const targetItem = e.target.closest('.draggable'); if (targetItem && targetItem !== draggedItem) { const originZone = draggedItem.parentElement; const targetZone = targetItem.parentElement; targetZone.insertBefore(draggedItem, targetItem.nextSibling); originZone.insertBefore(targetItem, null); } else { dropZone.appendChild(draggedItem); } updateAssignmentsData(); } });
+
+        function updateAssignmentsData() {
+            const newAssignments = {};
+            document.querySelectorAll('.drop-zone').forEach(zone => { const role = zone.dataset.role; const studentsInRole = []; zone.querySelectorAll('.draggable').forEach(studentEl => studentsInRole.push(studentEl.dataset.student)); newAssignments[role] = studentsInRole; });
+            let isValid = true; let conflictRole = '';
+            for (const roleName in newAssignments) { const assignedStudents = newAssignments[roleName]; for (const exclusion of exclusions) { if (assignedStudents.includes(exclusion.student1) && assignedStudents.includes(exclusion.student2)) { isValid = false; conflictRole = roleName; break; } } if (!isValid) break; }
+            if(isValid) { assignments = newAssignments; } else { showAlert(`"${conflictRole}" 역할에 함께 있을 수 없는 학생이 배정되었습니다. 변경이 취소됩니다.`); renderResults(); }
+        }
+
+        // --- 초기화 ---
+        renderStudents();
+        renderRoles();
+    </script>
+</body>
+</html>
+
